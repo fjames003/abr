@@ -25,4 +25,13 @@ fi
 echo "=== Installing packages for python3 env..."
 conda create -n ${CONDA_ENV_PY3} --file ${REQ_TXT_PY3} -y -c bioconda -c conda-forge -c defaults -c r
 
+if [[ -f "~/.bashrc" ]]; then
+    echo "export PYTHONPATH=${SH_SCRIPT_DIR}/.." >> "~/.bashrc"
+elif [[ -f "~/.bash_profile" ]]; then
+    echo "export PYTHONPATH=${SH_SCRIPT_DIR}/.." >> "~/.bash_profile"
+else
+    echo "Could not add abr directory to bash profile, do so manually to avoid issues"
+    export PYTHONPATH="${SH_SCRIPT_DIR}/.."
+fi
+
 echo "=== All done."
