@@ -1,5 +1,6 @@
 import numpy as np
 import operator
+import enaml
 
 from atom.api import (Atom, Typed, Dict, List, Bool, Int, Float, Tuple,
                       Property, Value)
@@ -12,6 +13,9 @@ from abr.abrpanel import WaveformPlot
 from abr.datatype import ABRSeries, WaveformPoint
 from abr.peakdetect import find_np, iterator_np
 from abr.parsers import registry
+
+with enaml.imports():
+    from abr.main_window import NotificationPopup
 
 
 def plot_model(axes, model):
@@ -104,7 +108,8 @@ class WaveformPresenter(Atom):
         if not self.P or not self.N:
             raise ValueError('Waves not identified')
         msg = registry.save(self.model, self.options)
-        self.close()
+        print(msg)
+        NotificationPopup().show()
 
     def update(self):
         self.iterator = self.get_iterator()
