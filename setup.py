@@ -31,7 +31,7 @@ requires = [
     'scipy',
     'pandas',
     'enaml',
-    'pytables',
+    'tables',
 ]
 
 classifiers = [
