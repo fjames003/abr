@@ -6,7 +6,7 @@ from enaml.layout.api import InsertItem, InsertTab
 from enaml.stdlib.message_box import critical
 from enaml.widgets.api import (MainWindow, DockArea, DockItem, PushButton,
                                Container, MPLCanvas, Feature, ProgressBar,
-                               Label, HGroup)
+                               Label, HGroup, PopupView)
 
 from abr.parsers import registry
 
@@ -71,6 +71,22 @@ def onpress(presenter, event):
     except Exception as e:
         critical(None, 'Error', str(e))
 
+enamldef NotificationPopup(PopupView):
+    foreground = 'white'
+    background = 'rgba(30, 30, 30, 0.85)'
+    window_type = 'tool_tip'
+    anchor_mode = 'cursor'
+    parent_anchor = (1.0, 1.0)
+    anchor = (0.0, 0.0)
+    offset = (0, 0)
+    timeout = 5
+    fade_in_duration = 500
+    fade_out_duration = 500
+    Container:
+        Label:
+            foreground = 'white'
+            text = 'Analysis has been saved'
+            align = 'center'
 
 enamldef SerialWindow(MainWindow):
 
