@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 # -*- coding: utf-8 -*-
 
 import os
@@ -18,7 +18,7 @@ with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
     readme = f.read()
 
 packages = [
-    'abr',
+    'abr', 'abr.app', 'abr.parsers',
 ]
 
 package_data = {
@@ -30,6 +30,8 @@ requires = [
     'matplotlib',
     'scipy',
     'pandas',
+    'enaml',
+    'pytables',
 ]
 
 classifiers = [
@@ -40,6 +42,7 @@ classifiers = [
 setup(
     name='ABR',
     description='ABR wave analyzer',
+    version='0.1.0',
     long_description=readme,
     packages=packages,
     package_data=package_data,
