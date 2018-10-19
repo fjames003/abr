@@ -162,17 +162,14 @@ def load_files(parser, filenames, dock_area, n_waves):
 
 
 enamldef DNDWindow(MainWindow):
-<<<<<<< HEAD
     title = "ABR / CAP Analysis"
     attr options
     attr message = "Drag and Drop a File Below"
     attr controls = "i \t-> estimate peaks (press again for valleys)\nu \t-> guess location of marker for wubsequent waveforms\nn \t-> normalize waveforms\nt \t-> set threshold\ns \t-> save amplitude and latency of peaks (must have set threshold and calculated BOTH peaks and valleys)\n+/- \t-> Change scaling factor"
-=======
 
     attr parser
     attr n_waves
 
->>>>>>> b82ddd9ece910fa4d0693fe6599004d4709ed357
     initial_size = (600, 900)
 
     Container:
