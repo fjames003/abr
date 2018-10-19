@@ -14,7 +14,7 @@ packages = [
 ]
 
 package_data = {
-    'abr': ['*.enaml', 'data/*'],
+    'abr': ['*.enaml', 'data/*', 'matplotlibrc'],
 }
 
 requires = [
