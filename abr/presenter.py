@@ -130,8 +130,9 @@ class WaveformPresenter(Atom):
             raise ValueError('Threshold not set')
         if not self.P or not self.N:
             raise ValueError('Waves not identified')
-        msg = registry.save(self.model, self.options)
-        print(msg)
+        # msg = registry.save(self.model, self.options)
+        # print(msg)
+        self.parser.save(self.model)
         NotificationPopup().show()
 
     def update(self):
