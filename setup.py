@@ -4,15 +4,7 @@
 import os
 import sys
 
-try:
-    from setuptools import setup
-except ImportError:
-    from distutils.core import setup
-
-if sys.argv[-1] == 'publish':
-    os.system('python setup.py sdist upload')
-    sys.exit()
-
+from setuptools import find_packages, setup
 
 with open(os.path.join(os.path.dirname(__file__), 'README.rst')) as f:
     readme = f.read()
@@ -22,7 +14,7 @@ packages = [
 ]
 
 package_data = {
-    'abr': ['data/*'],
+    'abr': ['*.enaml', 'data/*'],
 }
 
 requires = [
@@ -44,7 +36,7 @@ setup(
     description='ABR wave analyzer',
     version='0.1.0',
     long_description=readme,
-    packages=packages,
+    packages=find_packages(),
     package_data=package_data,
     install_requires=requires,
     classifiers=classifiers,

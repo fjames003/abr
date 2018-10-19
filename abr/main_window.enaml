@@ -6,9 +6,9 @@ from enaml.layout.api import InsertItem, InsertTab
 from enaml.stdlib.message_box import critical
 from enaml.widgets.api import (MainWindow, DockArea, DockItem, PushButton,
                                Container, MPLCanvas, Feature, ProgressBar,
-                               Label, HGroup, PopupView)
+                               Label, HGroup, PopupView, VGroup)
 
-from abr.parsers import registry
+from .datatype import Point
 
 
 def bind(figure, presenter):
@@ -38,8 +38,6 @@ def onpress(presenter, event):
             presenter.scale *= 1.1
         elif event.key in ('=', '+'):
             presenter.scale *= 0.9
-        elif event.key == 'd':
-            presenter.delete()
         elif event.key == 'i':
             if not presenter.P:
                 presenter.guess_p()
@@ -50,26 +48,26 @@ def onpress(presenter, event):
         elif event.key == 's':
             presenter.save()
         elif event.key == 'right':
-            presenter.move_selected_point(('zc', 1))
+            presenter.move_selected_point(('zero_crossing', 1))
         elif event.key == 'left':
-            presenter.move_selected_point(('zc', -1))
+            presenter.move_selected_point(('zero_crossing', -1))
         elif event.key == 'alt+right':
-            presenter.move_selected_point(('index', 1))
+            presenter.move_selected_point(('time', 1e-5))
         elif event.key == 'alt+left':
-            presenter.move_selected_point(('index', -1))
+            presenter.move_selected_point(('time', -1e-5))
         elif event.key == 'n':
             presenter.normalized = not presenter.normalized
         elif event.key in ('1', '2', '3', '4', '5'):
-            presenter.toggle = 'PEAK', int(event.key)
+            presenter.toggle = int(event.key), Point.PEAK
         elif event.key in ('alt+1', 'alt+2', 'alt+3', 'alt+4', 'alt+5'):
-            presenter.toggle = 'VALLEY', int(event.key[-1])
+            presenter.toggle = int(event.key[-1]), Point.VALLEY
         elif event.key == 'pagedown':
             presenter.load_next()
         elif event.key == 'pageup':
             presenter.load_prior()
-
     except Exception as e:
-        critical(None, 'Error', str(e))
+        raise
+        #critical(None, 'Error', str(e))
 
 enamldef NotificationPopup(PopupView):
     foreground = 'white'
@@ -96,14 +94,25 @@ enamldef SerialWindow(MainWindow):
     Container:
 
         HGroup:
+            VGroup:
+                Label:
+                    text = 'Progress (n={})'.format(len(presenter.unprocessed))
+                ProgressBar:
+                    value << presenter.current_model
+                    maximum << len(presenter.unprocessed)
+                    text_visible = True
+            VGroup:
+                PushButton:
+                    text = 'All above threshold'
+                    clicked ::
+                        presenter.set_suprathreshold()
+                PushButton:
+                    text = 'All below threshold'
+                    clicked ::
+                        presenter.set_subthreshold()
 
-            Label:
-                text = 'Progress'
-
-            ProgressBar:
-                value << presenter.current_model
-                maximum << len(presenter.unprocessed)
-                text_visible = True
+        Label:
+            text << '{} kHz'.format(presenter.model.freq)
 
         MPLCanvas: canvas:
             figure << presenter.figure
@@ -124,16 +133,16 @@ enamldef MPLDockItem(DockItem):
                 deferred_call(bind, figure, presenter)
 
 
-def add_dock_item(dock_area, model, path, options):
+def add_dock_item(dock_area, model, path, parser, n_waves):
     from abr.presenter import WaveformPresenter
-    presenter = WaveformPresenter(options)
+    presenter = WaveformPresenter(parser, n_waves)
     items = dock_area.dock_items()
     n_items = len(items)
 
     target = items[-1].name if n_items else ''
     title = '{:.2f} kHz - {}'.format(model.freq, os.path.basename(path))
     item = MPLDockItem(dock_area,
-                       name='foo{}'.format(n_items),
+                       name='dock_{}'.format(n_items),
                        title=title,
                        presenter=presenter)
 
@@ -142,11 +151,28 @@ def add_dock_item(dock_area, model, path, options):
     presenter.load(model)
 
 
+def load_files(parser, filenames, dock_area, n_waves):
+    for filename in filenames:
+        for model in parser.load(filename):
+            try:
+                add_dock_item(dock_area, model, filename, parser, n_waves)
+            except FileNotFoundError:
+                mesg = 'Could not load ABR data from {}'.format(path)
+                critical(None, 'Could not load file', mesg)
+
+
 enamldef DNDWindow(MainWindow):
+<<<<<<< HEAD
     title = "ABR / CAP Analysis"
     attr options
     attr message = "Drag and Drop a File Below"
     attr controls = "i \t-> estimate peaks (press again for valleys)\nu \t-> guess location of marker for wubsequent waveforms\nn \t-> normalize waveforms\nt \t-> set threshold\ns \t-> save amplitude and latency of peaks (must have set threshold and calculated BOTH peaks and valleys)\n+/- \t-> Change scaling factor"
+=======
+
+    attr parser
+    attr n_waves
+
+>>>>>>> b82ddd9ece910fa4d0693fe6599004d4709ed357
     initial_size = (600, 900)
 
     Container:
@@ -157,6 +183,7 @@ enamldef DNDWindow(MainWindow):
             text = controls
             align = 'left'
         DockArea: dock_area:
+            name = 'dock_area'
             features = Feature.DropEnabled
 
             drag_enter => (event):
@@ -165,14 +192,10 @@ enamldef DNDWindow(MainWindow):
 
             drop => (event):
                 text = event.mime_data().data('text/uri-list').decode('utf-8')
+                filenames = []
                 for t in text.strip().split('\n'):
-                    try:
-                        t = urllib.parse.unquote(t).strip()
-                        fragments = urllib.parse.urlsplit(t)
-                        path = fragments.path
-                        for model in registry.load(path, options):
-                            add_dock_item(dock_area, model, path, options)
-
-                    except FileNotFoundError:
-                        mesg = 'Could not load ABR data from {}'.format(path)
-                        critical(None, 'Could not load file', mesg)
+                    t = urllib.parse.unquote(t).strip()
+                    fragments = urllib.parse.urlsplit(t)
+                    path = fragments.path
+                    filenames.append(path)
+                load_files(parser, filenames, dock_area, n_waves)
