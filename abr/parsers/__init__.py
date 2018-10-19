@@ -117,8 +117,11 @@ class Parser(object):
                                  spreadsheet=spreadsheet)
 
         filename = self.get_save_filename(model.filename, model.freq)
-        with open(filename, 'w') as fh:
-            fh.writelines(content)
+        try:
+            with open(filename, 'w') as fh:
+                fh.writelines(content)
+        except Exception as e:
+            raise IOError("File cannot be saved. Must be able to write to location file was opened from")
 
     def find_unprocessed(self, dirname, options):
         return self._module.find_unprocessed(dirname, options)
