@@ -165,7 +165,7 @@ enamldef DNDWindow(MainWindow):
     title = "ABR / CAP Analysis"
     attr options
     attr message = "Drag and Drop a File Below"
-    attr controls = "i \t-> estimate peaks (press again for valleys)\nu \t-> guess location of marker for wubsequent waveforms\nn \t-> normalize waveforms\nt \t-> set threshold\ns \t-> save amplitude and latency of peaks (must have set threshold and calculated BOTH peaks and valleys)\n+/- \t-> Change scaling factor"
+    attr controls = "i \t-> estimate peaks (press again for valleys)\nu \t-> guess location of marker for subsequent waveforms\nn \t-> normalize waveforms\nt \t-> set threshold\ns \t-> save amplitude and latency of peaks (must have set threshold and calculated BOTH peaks and valleys)\n+/- \t-> Change scaling factor"
 
     attr parser
     attr n_waves
