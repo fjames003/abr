@@ -5,8 +5,14 @@ from enum import Enum
 import functools
 import operator
 
-from scipy import signal
 import numpy as np
+import pandas as pd
+from scipy import signal
+
+from atom.api import Atom, Int, Typed, Value
+
+from .peakdetect import (generate_latencies_bound, generate_latencies_skewnorm,
+                         guess, guess_iter, peak_iterator)
 
 
 @functools.total_ordering
@@ -21,108 +27,22 @@ class Point(Enum):
         return NotImplementedError
 
 
-class Waveform(object):
+class ABRWaveform:
 
-    def __init__(self, fs, signal, filter=None, t0=0):
-        self.t0 = t0
+    def __init__(self, fs, signal, level):
         self.fs = fs
-        # Time in msec
-        self.x = np.arange(signal.shape[-1]) * 1000.0 / self.fs + self.t0
-        # Voltage in microvolts
         self.signal = signal
-        self.y = self.signal.mean(axis=0)
-
-        if filter is not None:
-            self.filter(**filter)
-
-    def filter(self, order, lowpass, highpass, ftype='butter'):
-        """
-        Returns waveform filtered using filter paramters specified. Since
-        forward and reverse filtering is used to avoid introducing phase delay,
-        the filter order is essentially doubled.
-        """
-        Wn = highpass/self.fs, lowpass/self.fs
-        kwargs = dict(N=order, Wn=Wn, btype='band', ftype=ftype)
-        b, a = signal.iirfilter(output='ba', **kwargs)
-        zpk = signal.iirfilter(output='zpk', **kwargs)
-        try:
-            self._zpk.append(zpk)
-        except:
-            self._zpk = [zpk]
-        self.signal = signal.filtfilt(b, a, self.signal, axis=-1)
-        self.y = self.signal.mean(axis=0)
-        self.y = signal.filtfilt(b, a, self.y)
-
-    def stat(self, bounds, func):
-        tlb = bounds[0]-self.t0
-        tub = bounds[1]-self.t0
-        lb = int(round(tlb / ((1/self.fs)*1000)))
-        ub = int(round(tub / ((1/self.fs)*1000)))
-        return func(self.y[lb:ub])
-
-    def mean(self, lb, ub):
-        return self.stat((lb, ub), np.mean)
-
-    def std(self, lb, ub):
-        return self.stat((lb, ub), np.std)
-
-
-class WaveformPoint(object):
-    '''
-    Parameters
-    ----------
-    parent : waveform
-        Waveform point is associated with
-    index :
-        Index in waveform signal
-    point_type :
-        Type
-    '''
-
-
-    def __init__(self, parent, index, point):
-        self.parent = parent
-        self.index = index
-        self.point_type = point[1]
-        self.wave_number = point[0]
-
-    def _get_x(self):
-        return self.parent.x[self.index]
-
-    def _get_y(self):
-        return self.parent.y[self.index]
-
-    x = property(_get_x)
-    y = property(_get_y)
-
-    def is_peak(self):
-        return self.point_type == Point.PEAK
-
-    def is_valley(self):
-        return self.point_type == self.VALLEY
-
-    def _get_latency(self):
-        if self.parent.is_subthreshold():
-            return -np.abs(self.x)
-        else:
-            return self.x
-
-    def _get_amplitude(self):
-        return self.y
-
-    latency = property(_get_latency)
-    amplitude = property(_get_amplitude)
-
-
-class ABRWaveform(Waveform):
-
-    def __init__(self, fs, signal, level, series=None, filter=None,
-                 min_latency=None, t0=0):
-        super(ABRWaveform, self).__init__(fs, signal, filter, t0)
         self.level = level
-        self.series = series
         self.points = {}
-        self.min_latency = min_latency
+        self.series = None
+
+    @property
+    def x(self):
+        return self.signal.index.values
+
+    @property
+    def y(self):
+        return signal.detrend(self.signal.values)
 
     def is_subthreshold(self):
         if self.series.threshold is None:
@@ -133,6 +53,87 @@ class ABRWaveform(Waveform):
         if self.series.threshold is None:
             return True
         return self.level >= self.series.threshold
+
+    def stat(self, lb, ub, func):
+        return func(self.signal.loc[lb:ub])
+
+    def mean(self, lb, ub):
+        return self.stat(lb, ub, np.mean)
+
+    def std(self, lb, ub):
+        return self.stat(lb, ub, np.std)
+
+    def set_point(self, wave, ptype, index):
+        if (wave, ptype) not in self.points:
+            point = WaveformPoint(self, 0, wave, ptype)
+            self.points[wave, ptype] = point
+        self.points[wave, ptype].index = int(index)
+
+    def _set_points(self, guesses, ptype):
+        for wave, wave_guess in guesses.iterrows():
+            index = wave_guess['index']
+            if not np.isfinite(index):
+                index = np.searchsorted(self.x , wave_guess['x'])
+                index = np.clip(index, 0, len(self.x)-1)
+            else:
+                index = int(index)
+            self.set_point(wave, ptype, index)
+
+
+class WaveformPoint(Atom):
+    '''
+    Parameters
+    ----------
+    TODO
+    '''
+    parent = Typed(ABRWaveform)
+    index = Int()
+    wave_number = Int()
+    point_type = Typed(Point)
+    iterator = Value()
+
+    def __init__(self, parent, index, wave_number, point_type):
+        # Order of setting attributes is important here
+        self.parent = parent
+        self.point_type = point_type
+        self.wave_number = wave_number
+        invert = self.is_valley()
+        iterator = peak_iterator(parent, index, invert=invert)
+        next(iterator)
+        self.iterator = iterator
+        self.index = index
+
+    def _observe_index(self, event):
+        if event['type'] == 'update':
+            self.iterator.send(('set', event['value']))
+
+    @property
+    def x(self):
+        return self.parent.x[self.index]
+
+    @property
+    def y(self):
+        return self.parent.y[self.index]
+
+    def is_peak(self):
+        return self.point_type == Point.PEAK
+
+    def is_valley(self):
+        return self.point_type == Point.VALLEY
+
+    @property
+    def latency(self):
+        latency = self.x
+        if self.parent.is_subthreshold():
+            return -np.abs(latency)
+        return latency
+
+    @property
+    def amplitude(self):
+        return self.parent.signal.iloc[self.index]
+
+    def move(self, step):
+        self.index = self.iterator.send(step)
 
 
 class ABRSeries(object):
@@ -145,8 +146,38 @@ class ABRSeries(object):
         for waveform in self.waveforms:
             waveform.series = self
 
-    def get(self, level):
+    def get_level(self, level):
+        for waveform in self.waveforms:
+            if waveform.level == level:
+                return waveform
+        raise AttributeError(f'{level} dB SPL not in series')
+
+    def guess_p(self):
+        level_guesses = guess_iter(self.waveforms)
+        self._set_points(level_guesses, Point.PEAK)
+
+    def guess_n(self):
+        n_latencies = {}
         for w in self.waveforms:
-            if w.level == level:
-                return w
-        return None
+            g = {p.wave_number: p.x for p in w.points.values() if p.is_peak()}
+            g = pd.DataFrame({'x': g})
+            n_latencies[w.level] = generate_latencies_bound(g)
+        level_guesses = guess(self.waveforms, n_latencies, invert=True)
+        self._set_points(level_guesses, Point.VALLEY)
+
+    def update_guess(self, level, point):
+        waveform = self.get_level(level)
+        p = waveform.points[point]
+        g = {p.wave_number: p.x}
+        g = pd.DataFrame({'x': g})
+        latencies = generate_latencies_skewnorm(g)
+
+        i = self.waveforms.index(waveform)
+        waveforms = self.waveforms[:i]
+        level_guesses = guess_iter(waveforms, latencies, invert=p.is_valley())
+        self._set_points(level_guesses, p.point_type)
+
+    def _set_points(self, level_guesses, ptype):
+        for level, level_guess in level_guesses.items():
+            waveform = self.get_level(level)
+            waveform._set_points(level_guess, ptype)

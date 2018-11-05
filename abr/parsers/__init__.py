@@ -52,13 +52,17 @@ def filter_string(waveform):
 def load_analysis(fname):
     th_match = re.compile('Threshold \(dB SPL\): ([\w.]+)')
     freq_match = re.compile('Frequency \(kHz\): ([\d.]+)')
-    with open(fname) as f:
-        text = f.read()
+    with open(fname) as fh:
+        text = fh.readline()
         th = th_match.search(text).group(1)
         th = None if th == 'None' else float(th)
+        text = fh.readline()
         freq = float(freq_match.search(text).group(1))
-    data = pd.io.parsers.read_csv(fname, sep='\t', skiprows=5,
-                                  index_col='Level')
+
+        for line in fh:
+            if line.startswith('NOTE'):
+                break
+        data = pd.io.parsers.read_csv(fh, sep='\t', index_col='Level')
     return (freq, th, data)
 
 
@@ -84,8 +88,16 @@ class Parser(object):
         self._module_name = f'abr.parsers.{file_format}'
         self._module = importlib.import_module(self._module_name)
 
-    def load(self, filename, frequencies=None):
-        return self._module.load(filename, self._filter_settings, frequencies)
+    def load(self, filename, frequencies=None, include_analysis=True):
+        data = self._module.load(filename, self._filter_settings, frequencies)
+        if include_analysis:
+            for series in data:
+                analyzed_filename = self.get_save_filename(series.filename,
+                                                           series.freq)
+                if os.path.exists(analyzed_filename):
+                    freq, th, peaks = load_analysis(analyzed_filename)
+                    series.threshold = th
+        return data
 
     def get_save_filename(self, filename, frequency):
         # Round frequency to nearest 8 places to minimize floating-point
@@ -109,7 +121,8 @@ class Parser(object):
                 columns.append(f'{point_type_code}{point_number} {measure}')
 
         columns = '\t'.join(columns)
-        spreadsheet = '\n'.join(waveform_string(w) for w in reversed(model.waveforms))
+        spreadsheet = '\n'.join(waveform_string(w) \
+                                for w in reversed(model.waveforms))
         content = CONTENT.format(threshold=model.threshold,
                                  frequency=model.freq,
                                  filter_history=filter_history,
@@ -123,8 +136,8 @@ class Parser(object):
         except Exception as e:
             raise IOError("File cannot be saved. Must be able to write to location file was opened from")
 
-    def find_unprocessed(self, dirname, options):
-        return self._module.find_unprocessed(dirname, options)
+    def find_unprocessed(self, dirname):
+        return self._module.find_unprocessed(dirname, self)
 
 
 CONTENT = '''
